@@ -1,4 +1,4 @@
-# lib<mpsc>
+<h1>lib&ltmpsc&gt</h1>
 
 **A C POSIX multi-thread based multiple producers, single consumer (MPSC) channel library.**
 
