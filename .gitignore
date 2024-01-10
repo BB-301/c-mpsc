@@ -1,0 +1,10 @@
+**/.DS_Store
+
+/build*
+
+/.*
+!/.gitignore
+!/.clang-format
+
+/compile_flags.txt
+/tmp

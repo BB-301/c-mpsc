@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+    NOTE: There appears to be a bug in version 1.9.6, where anchorfile values get
+    stripped out of their .html extensions. Here, I'm trying to fix that
+    by adding the ".html" extension two times, although I'm aware that this will
+    probably cause issues when building the docs using another version of Doxygen.
+-->
+<tagfile doxygen_version="1.9.6">
+    <compound kind="file">
+        <name>stdarg.h</name>
+        <filename>man3/stdarg.3.html</filename>
+    </compound>
+    <compound kind="file">
+        <name>string.h</name>
+        <filename>man0/string.h.0p.html</filename>
+        <member kind="function">
+            <type>memcpy</type>
+            <name>memcpy</name>
+            <anchorfile>man3/memcpy.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(void dest[restrict .n], const void src[restrict .n], size_t n)</arglist>
+        </member>
+        <member kind="function">
+            <type>strlen</type>
+            <name>strlen</name>
+            <anchorfile>man3/strlen.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(const char *s)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>ctype.h</name>
+        <filename>man0/ctype.h.0p.html</filename>
+        <member kind="function">
+            <type>tolower</type>
+            <name>tolower</name>
+            <anchorfile>man3/tolower.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(int c)</arglist>
+        </member>
+        <member kind="function">
+            <type>toupper</type>
+            <name>toupper</name>
+            <anchorfile>man3/toupper.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(int c)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>sys/types.h</name>
+        <filename>man0/sys_types.h.0p.html</filename>
+    </compound>
+    <compound kind="file">
+        <name>errno.h</name>
+        <filename>man3/errno.3.html</filename>
+        <member kind="function">
+            <type>errno</type>
+            <name>errno</name>
+            <anchorfile>man3/errno.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>errno.h</name>
+        <filename>man3/errno.3.html</filename>
+        <member kind="function">
+            <type>ENOMEM</type>
+            <name>ENOMEM</name>
+            <anchorfile>man3/errno.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>errno.h</name>
+        <filename>man3/errno.3.html</filename>
+        <member kind="function">
+            <type>EAGAIN</type>
+            <name>EAGAIN</name>
+            <anchorfile>man3/errno.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>stdlib.h</name>
+        <filename>man0/stdlib.h.0p.html</filename>
+        <member kind="function">
+            <type>free</type>
+            <name>free</name>
+            <anchorfile>man3/free.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(void *ptr)</arglist>
+        </member>
+        <member kind="function">
+            <type>malloc</type>
+            <name>malloc</name>
+            <anchorfile>man3/malloc.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(size_t size)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>assert.h</name>
+        <filename>man3/assert.3.html</filename>
+        <member kind="function">
+            <type>assert</type>
+            <name>assert</name>
+            <anchorfile>man3/assert.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(scalar expression)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>regex.h</name>
+        <filename>man0/regex.h.0p.html</filename>
+        <member kind="function">
+            <type>regexec</type>
+            <name>regexec</name>
+            <anchorfile>man3/regex.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(const regex_t *restrict preg, const char *restrict string, size_t nmatch,
+                regmatch_t pmatch[restrict .nmatch], int eflags)</arglist>
+        </member>
+        <member kind="function">
+            <type>regcomp</type>
+            <name>regcomp</name>
+            <anchorfile>man3/regex.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(regex_t *restrict preg, const char *restrict pattern, int cflags)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>pthread.h</name>
+        <filename>pthread.h.0p.html</filename>
+        <member kind="typedef">
+            <type>pthread_mutex_t</type>
+            <name>pthread_mutex_t</name>
+            <anchorfile>pthread.h.0p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="function">
+            <type>pthread_create</type>
+            <name>pthread_create</name>
+            <anchorfile>man3/pthread_create.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(pthread_t *restrict thread,const pthread_attr_t *restrict attr,void
+                *(*start_routine)(void *),void *restrict arg)</arglist>
+        </member>
+        <member kind="function">
+            <type>pthread_mutex_init</type>
+            <name>pthread_mutex_init</name>
+            <anchorfile>man3/pthread_create.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(pthread_mutex_t *restrict mutex, const pthread_mutexattr_t *restrict attr)</arglist>
+        </member>
+        <member kind="function">
+            <type>pthread_cond_init</type>
+            <name>pthread_cond_init</name>
+            <anchorfile>man3/pthread_cond_init.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(pthread_cond_t *restrict cond, const pthread_condattr_t *restrict attr)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>stdio.h</name>
+        <filename>man0/stdio.h.0p.html</filename>
+        <member kind="typedef">
+            <type>EOF</type>
+            <name>EOF</name>
+            <anchorfile>man3/EOF.3const.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="function">
+            <type>getc_unlocked</type>
+            <name>getc_unlocked</name>
+            <anchorfile>man3/getc_unlocked.3p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(FILE *stream)</arglist>
+        </member>
+        <member kind="typedef">
+            <type>fgetc</type>
+            <name>fgetc</name>
+            <anchorfile>man3/fgetc.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(FILE *stream)</arglist>
+        </member>
+        <member kind="typedef">
+            <type>FILE</type>
+            <name>FILE</name>
+            <anchorfile>man0/stdio.h.0p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>FILE</type>
+            <name>stdin</name>
+            <anchorfile>man3/stdout.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>FILE</type>
+            <name>stdout</name>
+            <anchorfile>man3/stdout.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>FILE</type>
+            <name>stderr</name>
+            <anchorfile>man3/stdout.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="function">
+            <type>printf</type>
+            <name>printf</name>
+            <anchorfile>man3/printf.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(const char *restrict format, ...)</arglist>
+        </member>
+        <member kind="function">
+            <type>getline</type>
+            <name>getline</name>
+            <anchorfile>man3/getline.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(char **restrict lineptr, size_t *restrict n, FILE *restrict stream)</arglist>
+        </member>
+        <member kind="function">
+            <type>fclose</type>
+            <name>fclose</name>
+            <anchorfile>man3/fclose.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(FILE *stream)</arglist>
+        </member>
+        <member kind="function">
+            <type>fmemopen</type>
+            <name>fmemopen</name>
+            <anchorfile>man3/fmemopen.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(void buf[.size], size_t size, const char *mode)</arglist>
+        </member>
+        <member kind="function">
+            <type>open_memestream</type>
+            <name>open_memestream</name>
+            <anchorfile>man3/open_memstream.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(char **ptr, size_t *sizeloc)</arglist>
+        </member>
+        <member kind="function">
+            <type>fopen</type>
+            <name>fopen</name>
+            <anchorfile>man3/fopen.3.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist>(const char *restrict pathname, const char *restrict mode)</arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>stdint.h</name>
+        <filename>man0/stdint.h.0p.html</filename>
+        <member kind="typedef">
+            <type>uint16_t</type>
+            <name>uint16_t</name>
+            <anchorfile>man0/stdint.h.0p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>stdbool.h</name>
+        <filename>man0/stdbool.h.0p.html</filename>
+        <member kind="typedef">
+            <type>bool</type>
+            <name>bool</name>
+            <anchorfile>man0/stdbool.h.0p.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+    <compound kind="file">
+        <name>stddef.h</name>
+        <filename>man0/stddef.h.0p.html</filename>
+        <member kind="typedef">
+            <type>NULL</type>
+            <name>NULL</name>
+            <anchorfile>man3/size_t.3type.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>size_t</type>
+            <name>size_t</name>
+            <anchorfile>man3/size_t.3type.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>ssize_t</type>
+            <name>ssize_t</name>
+            <anchorfile>man3/size_t.3type.html.html</anchorfile>
+            <anchor></anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+</tagfile>

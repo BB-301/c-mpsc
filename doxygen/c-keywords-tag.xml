@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tagfile doxygen_version="1.9.6">
+    <compound kind="file">
+        <member kind="typedef">
+            <type>char</type>
+            <name>char</name>
+            <anchorfile>Basic-Integers.html</anchorfile>
+            <anchor>index-char</anchor>
+            <arglist></arglist>
+        </member>
+        <member kind="typedef">
+            <type>void</type>
+            <name>void</name>
+            <anchorfile>The-Void-Type.html</anchorfile>
+            <anchor>index-void</anchor>
+            <arglist></arglist>
+        </member>
+    </compound>
+</tagfile>
