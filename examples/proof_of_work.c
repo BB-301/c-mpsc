@@ -33,7 +33,7 @@
     in which Rust's `std::sync::mpsc`'s facility is used by the
     "winning worker thread" to communicate its solution to the main
     thread. The current example is a little different, however. Notably,
-    here, instead of casting the product (`base * value`) to as string
+    here, instead of casting the product (`base * value`) to a string
     and then to bytes before hashing, we encode the `__uint128_t` product
     as a 16-byte big-endian byte array and pass those 16 bytes directly
     to the OpenSSL based sha256 hasher. Then, to determine
@@ -69,7 +69,7 @@
     }
 
 #define N_WORKERS (8)          // This value should match the number of CPUs on the system to be optimal.
-#define PROBLEM_DIFFICULTY (7) // 7 trailing zeros is ok, but 8 takes substantial time for home the average home computer system
+#define PROBLEM_DIFFICULTY (7) // 7 trailing zeros is ok, but 8 takes substantial time for the average home computer system
 #define PROBLEM_BASE (158)
 #define N_ITERS_BEFORE_CHANNEL_CHECK (1000)
 

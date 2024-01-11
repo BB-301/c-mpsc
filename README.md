@@ -4,7 +4,7 @@
 
 ## Introduction
 
-`lib<mpsc>` is a C library that exposes a simple API of an attempt at a single process, multi-thread based multiple producers, single consumer (MPSC) channel implementation, which is based on [POSIX's pthread](https://en.wikipedia.org/wiki/Pthreads) facilities, making use of types such as `pthread_t`, `pthread_mutex_t`, and `pthread_cond_t` to ensure proper and efficient message synchronization.
+`lib<mpsc>` is an attempt at a single process, multi-thread based **multiple producers, single consumer (MPSC) channel** implementation in C. It is based on [POSIX's pthread](https://en.wikipedia.org/wiki/Pthreads) facilities, making use of types such as `pthread_t`, `pthread_mutex_t`, and `pthread_cond_t` to ensure proper and efficient message synchronization between a producer and the consumer.
 
 ### But why this library?
 
@@ -95,7 +95,7 @@ static void my_producer_thread_callback(mpsc_producer_t *producer)
 
 ## How it works
 
-At a high level, a `mpsc_t` object (i.e., a channel) is instantiated using the `mpsc_create` function, which accepts a structure of type `mpsc_create_params_t` as argument, which contains the configurations for the new channel. The next step is to register producers, before finally "joining" (using `mpsc_join`) the channel. Note that, for most applications, the channel should be created an joined on the same thread (e.g., the main application thread).
+At a high level, a `mpsc_t` object (i.e., a channel) is instantiated using the `mpsc_create` function, which accepts a structure of type `mpsc_create_params_t` as argument, which contains the configurations for the new channel. The next step is to register producers, before finally "joining" (using `mpsc_join`) the channel. Note that, for most applications, the channel should be created and joined on the same thread (e.g., the main application thread).
 
 Internally, a new thread is created for each registered producer, and an additional thread is created for the consumer. The consumer thread uses a `mutex` and a `condition variable` to wait on a message, which message is signaled by a producer by updating the condition variable's state (and possibly first updating the internal data buffer with data, if the message has data). The internal data buffer is protected by a mutex, and contains a memory independent copy of the message sent by the producer (in other words, a message sent by a producer, using `mpsc_producer_send`, has its data copied to the internal buffer).
 
@@ -103,7 +103,7 @@ When the internal consumer thread gets notified of a new message, it creates a c
 
 A channel can be closed in two ways. First, the consumer callback function can itself request that the channel be closed by calling `mpsc_consumer_close` on the `mpsc_consumer_t` object it receives as argument. Alternatively, provided that `mpsc_join` has been called on the channel object, the channel will close as soon as all producer thread callback functions have returned. In either case, the application defined consumer callback will receive a last message with its `closed` argument set to `true`, and the callback will no longer be called for that particular channel object.
 
-It should be noted, however, that the call to `mpsc_join` will hang, even when the channel closure has been requested by the consumer object, until all producer thread callback functions have returned. The `mpsc_producer_ping` function exists so that a producer that is used as a worker can periodically check to make sure the channel is still open, and, if not, return immediately. This is illustrated by both the [the_first_wins.c](./examples/the_first_wins.c) and the [proof_of_work.c](./examples/proof_of_work.c) examples.
+It should be noted, however, that the call to `mpsc_join` will hang, even when the channel closure has been requested by the consumer object using `mpsc_consumer_close`, until all producer thread callback functions have returned. The `mpsc_producer_ping` function exists so that a producer that is used as a worker can periodically check to make sure the channel is still opened, and, if not, return immediately. This is illustrated by both the [the_first_wins.c](./examples/the_first_wins.c) and the [proof_of_work.c](./examples/proof_of_work.c) examples.
 
 Once the internal consumer thread and all the internal producer threads have been joined (which happens inside the `mpsc_join` call), the `mpsc_t` object will be cleaned up (i.e., destroyed), and the call to `mpsc_join` will return, marking the end of the channel's life cycle.
 
@@ -128,6 +128,7 @@ This is an experimental library, so please use with caution, and please feel fre
 ## Roadmap
 
 * I would like to identify more real life applications for which this library could be useful and add those as examples to the [examples](./examples) directory.
+* I want to add a section (to this README.md file) about error handling.
 * I just realized, at the moment of publication of this first version of the project, that there is currently no way for a consumer callback to know for which `mpsc_t` object it is being executed (except than to use a callback for no more than only one `mpsc_t` instance by application). That means that, for an application using multiple channel instances, and for which knowledge about the channel object for which the callback is being executed would be required, that application would have to implement an individual consumer callback function for each channel, even if the callback implementation is the same across some of the channels. This could easily be solved by allowing to store arbitrary application data in the `mpsc_t` object at instantiation time, and by providing a simple function to be able to retrieve said data from inside the callback (e.g., `void *mpsc_consumer_channel_context(mpsc_consumer_t *self)`). A similar function to be used with the producer object could also be added (e.g., `void *mpsc_producer_channel_context(mpsc_producer_t *self)`).
 
 ## Contact
