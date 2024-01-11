@@ -46,6 +46,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <openssl/sha.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -145,7 +146,7 @@ int main(void)
 
     fprintf(
         stdout,
-        "\nProof-Of-Work (sha256) result for %zu workers, base = %llu, and difficulty = %llu (time elapsed: %zu ms):\n\n",
+        "\nProof-Of-Work (sha256) result for %zu workers, base = %" PRIu64 ", and difficulty = %" PRIu64 " (time elapsed: %zu ms):\n\n",
         (size_t)N_WORKERS,
         (uint64_t)PROBLEM_BASE,
         (uint64_t)PROBLEM_DIFFICULTY,
@@ -216,7 +217,7 @@ static void my_solution_print(struct my_solution *solution, FILE *stream)
         fprintf(stream, "%02x", solution->hash[i]);
     }
     fprintf(stream, ",\n");
-    fprintf(stream, "\t.value = %llu\n", solution->value);
+    fprintf(stream, "\t.value = %" PRIu64 "\n", solution->value);
     fprintf(stream, "}\n");
 }
 
@@ -235,6 +236,9 @@ static void product_of_two_u64_values_to_u128_bit_byte_array(uint64_t a, uint64_
 
 static void sha256_hash_u128_bit_byte_array(byte_array_u128_t byte_array, sha256_hash_t hash)
 {
+    //  NOTE: This example is based on an older version of OpenSSL; i.e.,
+    //  "OpenSSL 1.1.1s  1 Nov 2022". The functions below have been marked
+    //  as deprecated in 3.x.x version. So this needs to be updated.
     SHA256_CTX sha256;
     ASSERT_SHA_OPERATION(SHA256_Init(&sha256));
     ASSERT_SHA_OPERATION(SHA256_Update(&sha256, byte_array, 16));

@@ -83,14 +83,16 @@ example_complex_message_type: \
 		-o $(EXAMPLES_BUILD_DIR)/complex_message_type
 	./$(EXAMPLES_BUILD_DIR)/complex_message_type
 
-# Note: This example assumes that `libcurl` is installed on the system.
+# Note 1: This example assumes that `libcurl` is installed on the system.
+# Note 2: The position of `-lcurl` is important. [Read this](https://stackoverflow.com/a/28177056/4978732)
 example_fetch_multiple_urls: \
 	$(EXAMPLES_BUILD_DIR) \
 	$(INCLUDE_DIR)/$(LIB_NAME).h \
 	$(SOURCE_DIR)/$(LIB_NAME).c \
 	$(EXAMPLES_DIR)/fetch_multiple_urls.c
-	$(CC) $(CFLAGS) -lcurl \
+	$(CC) $(CFLAGS) \
 		$(SOURCE_DIR)/$(LIB_NAME).c $(EXAMPLES_DIR)/fetch_multiple_urls.c \
+		-lcurl \
 		-o $(EXAMPLES_BUILD_DIR)/fetch_multiple_urls
 	./$(EXAMPLES_BUILD_DIR)/fetch_multiple_urls
 	
@@ -104,14 +106,18 @@ example_the_first_wins: \
 		-o $(EXAMPLES_BUILD_DIR)/the_first_wins
 	./$(EXAMPLES_BUILD_DIR)/the_first_wins
 	
-# NOTE: This example assumes that OpenSSL is installed on the system.
+# NOTE 1: This example assumes that OpenSSL is installed on the system.
+# NOTE 2: This example is based on "OpenSSL 1.1.1s  1 Nov 2022". The
+# SHA256_Init, SHA256_Update, and SHA256_Final function are now marked
+# as deprecated in version 3.x.x, so this needs to be updated.
 example_proof_of_work: \
 	$(EXAMPLES_BUILD_DIR) \
 	$(INCLUDE_DIR)/$(LIB_NAME).h \
 	$(SOURCE_DIR)/$(LIB_NAME).c \
 	$(EXAMPLES_DIR)/proof_of_work.c
-	$(CC) $(CFLAGS) -lssl -lcrypto \
+	$(CC) $(CFLAGS) \
 		$(SOURCE_DIR)/$(LIB_NAME).c $(EXAMPLES_DIR)/proof_of_work.c \
+		-lssl -lcrypto \
 		-o $(EXAMPLES_BUILD_DIR)/proof_of_work
 	./$(EXAMPLES_BUILD_DIR)/proof_of_work
 
