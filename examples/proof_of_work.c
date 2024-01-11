@@ -230,7 +230,7 @@ static void product_of_two_u64_values_to_u128_bit_byte_array(uint64_t a, uint64_
     for (size_t i = 0; i < 16; i++)
     {
         size_t n = i * 8;
-        dest[16 - i - 1] = (p & (0xff << n)) >> n;
+        dest[16 - i - 1] = (p & ((__uint128_t)0xff << n)) >> n;
     }
 }
 

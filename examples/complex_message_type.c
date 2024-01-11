@@ -41,10 +41,10 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 #include "mpsc.h"
 
@@ -100,13 +100,15 @@ static void my_consumer_callback(mpsc_consumer_t *consumer, void *data, size_t n
     enum my_message_type message_type = ((uint8_t *)data)[0];
     if (message_type == MY_MESSAGE_TYPE_NUMBER)
     {
-        struct my_message_number *message = (void *)((uint8_t *)data + 1);
-        fprintf(stdout, "[number] %i\n", message->number);
+        struct my_message_number message;
+        memcpy(&message, (uint8_t *)data + 1, sizeof(struct my_message_number));
+        fprintf(stdout, "[number] %i\n", message.number);
     }
     else if (message_type == MY_MESSAGE_TYPE_TEXT)
     {
-        struct my_message_text *message = (void *)((uint8_t *)data + 1);
-        fprintf(stdout, "[text] %s\n", message->text);
+        struct my_message_text message;
+        memcpy(&message, (uint8_t *)data + 1, sizeof(struct my_message_text));
+        fprintf(stdout, "[text] %s\n", message.text);
     }
     else
     {

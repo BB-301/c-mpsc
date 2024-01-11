@@ -117,7 +117,7 @@ example_proof_of_work: \
 	$(EXAMPLES_DIR)/proof_of_work.c
 	$(CC) $(CFLAGS) \
 		$(SOURCE_DIR)/$(LIB_NAME).c $(EXAMPLES_DIR)/proof_of_work.c \
-		-lssl -lcrypto \
+		-lcrypto \
 		-o $(EXAMPLES_BUILD_DIR)/proof_of_work
 	./$(EXAMPLES_BUILD_DIR)/proof_of_work
 
