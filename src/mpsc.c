@@ -30,6 +30,12 @@
 
 #include "mpsc.h"
 
+#define ABORT()                                                             \
+    {                                                                       \
+        fprintf(stderr, "mpsc.c:%i %s: Fatal Error\n", __LINE__, __func__); \
+        abort();                                                            \
+    }
+
 static void my_thread_join(pthread_t id);
 static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state);
 static void my_condition_variable_signal(pthread_cond_t *condition_variable);
@@ -163,19 +169,19 @@ void mpsc_join(mpsc_t *self)
         if (current_thread_id != self->parent_thread_id)
         {
             fprintf(stderr, "call to mpsc_join failed: 'create_and_join_thread_safety_disabled = false' requires mpsc instance to be created and joined on the same thread.\n");
-            exit(EXIT_FAILURE);
+            ABORT();
         }
     }
     if (self->joined)
     {
         fprintf(stderr, "call to mpsc_join failed: can only be called once per instance\n");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     self->joined = true;
     if (self->producer_count == 0)
     {
         fprintf(stderr, "call to mpsc_join failed: expecting at least one producer\n");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     my_mutex_set_lock_state(&self->mutex, false);
     my_thread_join(self->consumer_thread_id);
@@ -250,7 +256,7 @@ bool mpsc_producer_send(mpsc_producer_t *self, void *data, size_t n)
     if (n > self->mpsc->buffer_size)
     {
         fprintf(stderr, "call to mpsc_producer_send failed: 'n = %zu' is greater than 'buffer_size = %zu'\n", n, self->mpsc->buffer_size);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     if (self->mpsc->closed)
     {
@@ -329,7 +335,7 @@ static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_fai
         break;
     default:
         fprintf(stdout, "call to mpsc_handle_creation_failure failed: 'errno = %i' no supported by this call\n", errno);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     switch (type)
     {
@@ -370,7 +376,7 @@ static void mpsc_create_params_validate(mpsc_create_params_t *params)
         fprintf(
             stderr,
             "call to mpsc_create failed: invalid 'consumer_callback = NULL'\n");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     if (
         params->error_handling_enabled &&
@@ -379,14 +385,14 @@ static void mpsc_create_params_validate(mpsc_create_params_t *params)
         fprintf(
             stderr,
             "call to mpsc_create failed: invalid 'consumer_error_callback = NULL'; must be present when 'error_handling_enabled = true'\n");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     if (params->n_max_producers == 0)
     {
         fprintf(
             stderr,
             "call to mpsc_create failed: invalid 'n_max_producers = 0'; requires at least 1\n");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -454,7 +460,7 @@ static void my_thread_join(pthread_t id)
     if (reason_code != 0)
     {
         fprintf(stderr, "call to pthread_join failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -466,7 +472,7 @@ static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state)
         if (reason_code != 0)
         {
             fprintf(stderr, "call to pthread_mutex_lock failed with code = %i\n", reason_code);
-            exit(EXIT_FAILURE);
+            ABORT();
         }
     }
     else
@@ -475,7 +481,7 @@ static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state)
         if (reason_code != 0)
         {
             fprintf(stderr, "call to pthread_mutex_unlock failed with code = %i\n", reason_code);
-            exit(EXIT_FAILURE);
+            ABORT();
         }
     }
 }
@@ -486,7 +492,7 @@ static void my_condition_variable_signal(pthread_cond_t *condition_variable)
     if (reason_code != 0)
     {
         fprintf(stderr, "call to pthread_cond_signal failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -496,7 +502,7 @@ static void my_condition_variable_wait(pthread_cond_t *condition_variable, pthre
     if (reason_code != 0)
     {
         fprintf(stderr, "call to pthread_cond_wait failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -513,7 +519,7 @@ static bool my_mutex_init(pthread_mutex_t *mutex, bool handle_errors)
             return false;
         }
         fprintf(stderr, "call to pthread_mutex_init failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     return true;
 }
@@ -524,7 +530,7 @@ static void my_mutex_destroy(pthread_mutex_t *mutex)
     if (reason_code != 0)
     {
         fprintf(stderr, "call to pthread_mutex_destroy failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -541,7 +547,7 @@ static bool my_condition_variable_init(pthread_cond_t *condition_variable, bool 
             return false;
         }
         fprintf(stderr, "call to pthread_cond_init failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     return true;
 }
@@ -552,7 +558,7 @@ static void my_condition_variable_destroy(pthread_cond_t *condition_variable)
     if (reason_code != 0)
     {
         fprintf(stderr, "call to pthread_cond_destroy failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
 }
 
@@ -569,7 +575,7 @@ static bool my_thread_create(pthread_t *id, void *(callback)(void *context), voi
             return false;
         }
         fprintf(stderr, "call to pthread_create failed with code = %i\n", reason_code);
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     return true;
 }
@@ -586,7 +592,7 @@ static void *my_malloc(size_t n, bool handle_errors)
             return NULL;
         }
         perror("malloc");
-        exit(EXIT_FAILURE);
+        ABORT();
     }
     return pointer;
 }
