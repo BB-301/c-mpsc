@@ -30,11 +30,9 @@
 
 #include "mpsc.h"
 
-#define ABORT()                                                             \
-    {                                                                       \
-        fprintf(stderr, "mpsc.c:%i %s: Fatal Error\n", __LINE__, __func__); \
-        abort();                                                            \
-    }
+#ifndef MPSC_SRC_FILE_NAME
+#define MPSC_SRC_FILE_NAME "mpsc.c"
+#endif
 
 static void my_thread_join(pthread_t id);
 static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state);
@@ -59,10 +57,12 @@ typedef enum
     MPSC_HANDLE_CREATION_FAILURE_THREAD_CREATE = 3,
 } mpsc_handle_creation_failure_type_t;
 
-static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_failure_type_t type);
+static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_failure_type_t type, ssize_t producer_cond_var_index);
 static void mpsc_destroy(mpsc_t *self);
 static void mpsc_create_params_validate(mpsc_create_params_t *params);
 static void mpsc_producer_done(mpsc_producer_t *self);
+static size_t mpsc_producer_subscribe_to_wait_queue(mpsc_producer_t *self);
+static void mpsc_shift_producer_wait_queue(mpsc_t *self);
 
 struct mpsc_consumer_s
 {
@@ -74,7 +74,6 @@ struct mpsc_producer_s
     mpsc_t *mpsc;
     void *application_context;
     bool done;
-    // void *(*callback)(void *context);
     mpsc_producer_thread_callback_t *callback;
 };
 
@@ -82,8 +81,6 @@ struct mpsc_s
 {
     size_t buffer_size;
     size_t n_max_producers;
-    size_t consumer_sleep_timeout_ms;
-    size_t producer_sleep_timeout_ms;
     void *buffer;
     size_t n;
     bool pending_message;
@@ -93,6 +90,8 @@ struct mpsc_s
     bool error_handling_enabled;
     bool create_and_join_thread_safety_disabled;
     pthread_t parent_thread_id;
+    size_t n_producers_waiting;
+    ssize_t next_waiting_producer_id;
 
     pthread_mutex_t mutex;
     pthread_cond_t condition_variable;
@@ -105,6 +104,8 @@ struct mpsc_s
     pthread_t *producer_thread_ids;
     mpsc_producer_t *producers;
     size_t producer_count;
+    pthread_cond_t *producer_condition_variables;
+    size_t *producer_waiting_ids_queue;
 };
 
 mpsc_t *mpsc_create(mpsc_create_params_t params)
@@ -113,7 +114,7 @@ mpsc_t *mpsc_create(mpsc_create_params_t params)
     mpsc_t *self = my_malloc(sizeof(mpsc_t), params.error_handling_enabled);
     if (self == NULL)
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
     }
     self->parent_thread_id = pthread_self();
     self->buffer_size = params.buffer_size;
@@ -124,20 +125,32 @@ mpsc_t *mpsc_create(mpsc_create_params_t params)
     self->buffer = my_malloc(params.buffer_size, params.error_handling_enabled);
     if (self->buffer == NULL)
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
     }
     self->n = 0;
     self->n_producers_closed = 0;
     self->producer_thread_ids = my_malloc(sizeof(pthread_t) * params.n_max_producers, params.error_handling_enabled);
     if (self->producer_thread_ids == NULL)
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
     }
     self->producers = my_malloc(sizeof(mpsc_producer_t) * params.n_max_producers, params.error_handling_enabled);
     if (self->producers == NULL)
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
     }
+    self->producer_condition_variables = my_malloc(sizeof(pthread_cond_t) * params.n_max_producers, params.error_handling_enabled);
+    if (self->producer_condition_variables == NULL)
+    {
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
+    }
+    self->producer_waiting_ids_queue = my_malloc(sizeof(size_t) * params.n_max_producers, params.error_handling_enabled);
+    if (self->producer_waiting_ids_queue == NULL)
+    {
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_NONE, -1);
+    }
+    self->n_producers_waiting = 0;
+    self->next_waiting_producer_id = -1;
     self->consumer.mpsc = self;
     self->producer_count = 0;
     self->joined = false;
@@ -147,15 +160,23 @@ mpsc_t *mpsc_create(mpsc_create_params_t params)
     //  NOTE: The follow three calls' order is expected by `mpsc_handle_creation_failure`.
     if (!my_condition_variable_init(&self->condition_variable, params.error_handling_enabled))
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_COND_VAR_INIT);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_COND_VAR_INIT, -1);
+    }
+    for (size_t i = 0; i < params.n_max_producers; i++)
+    {
+        if (!my_condition_variable_init(&self->producer_condition_variables[i], params.error_handling_enabled))
+        {
+            return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_COND_VAR_INIT, i);
+        }
     }
     if (!my_mutex_init(&self->mutex, params.error_handling_enabled))
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_MUTEX_INIT);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_MUTEX_INIT, -1);
     }
+
     if (!my_thread_create(&self->consumer_thread_id, my_consumer_thread_callback, self, params.error_handling_enabled))
     {
-        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_THREAD_CREATE);
+        return mpsc_handle_creation_failure(self, MPSC_HANDLE_CREATION_FAILURE_THREAD_CREATE, -1);
     }
     return self;
 }
@@ -168,20 +189,34 @@ void mpsc_join(mpsc_t *self)
         pthread_t current_thread_id = pthread_self();
         if (current_thread_id != self->parent_thread_id)
         {
-            fprintf(stderr, "call to mpsc_join failed: 'create_and_join_thread_safety_disabled = false' requires mpsc instance to be created and joined on the same thread.\n");
-            ABORT();
+            fprintf(
+                stderr,
+                "%s:%i %s [Fatal Error] 'create_and_join_thread_safety_disabled = false' requires mpsc instance to be created and joined on the same thread.\n",
+                MPSC_SRC_FILE_NAME, __LINE__, __func__);
+            abort();
         }
     }
     if (self->joined)
     {
-        fprintf(stderr, "call to mpsc_join failed: can only be called once per instance\n");
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] can only be called once per instance\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
     }
     self->joined = true;
     if (self->producer_count == 0)
     {
-        fprintf(stderr, "call to mpsc_join failed: expecting at least one producer\n");
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] expecting at least one producer\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
+    }
+    if (self->producer_count == self->n_producers_closed)
+    {
+        self->closed = true;
+        my_condition_variable_signal(&self->condition_variable);
     }
     my_mutex_set_lock_state(&self->mutex, false);
     my_thread_join(self->consumer_thread_id);
@@ -235,6 +270,11 @@ void mpsc_consumer_close(mpsc_consumer_t *self)
     my_mutex_set_lock_state(&self->mpsc->mutex, true);
     self->mpsc->closed = true;
     my_condition_variable_signal(&self->mpsc->condition_variable);
+    for (size_t i = 0; i < self->mpsc->n_producers_waiting; i++)
+    {
+        size_t index = self->mpsc->producer_waiting_ids_queue[i];
+        my_condition_variable_signal(&self->mpsc->producer_condition_variables[index]);
+    }
     my_mutex_set_lock_state(&self->mpsc->mutex, false);
 }
 
@@ -255,20 +295,42 @@ bool mpsc_producer_send(mpsc_producer_t *self, void *data, size_t n)
     my_mutex_set_lock_state(&self->mpsc->mutex, true);
     if (n > self->mpsc->buffer_size)
     {
-        fprintf(stderr, "call to mpsc_producer_send failed: 'n = %zu' is greater than 'buffer_size = %zu'\n", n, self->mpsc->buffer_size);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] 'n = %zu' is greater than 'buffer_size = %zu'\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, n, self->mpsc->buffer_size);
+        abort();
     }
     if (self->mpsc->closed)
     {
         my_mutex_set_lock_state(&self->mpsc->mutex, false);
         return false;
     }
-    if (self->mpsc->pending_message)
+    // NOTE: Checking for these two conditions here is very important, else
+    // some races will occur when we have a waiting producer that gets signaled
+    // but at the same time a new message is free of sending because `message_pending = false`.
+    // What happens is that the "free" sent message gets overriden by the waiting one.
+    if (self->mpsc->pending_message || self->mpsc->next_waiting_producer_id != -1)
     {
-        my_mutex_set_lock_state(&self->mpsc->mutex, false);
-        // NOTE: We won't sleep for now, but we could benchmark CPU usage
-        // in such situations...
-        return mpsc_producer_send(self, data, n);
+        size_t id = mpsc_producer_subscribe_to_wait_queue(self);
+        pthread_cond_t *condition_variable = &self->mpsc->producer_condition_variables[id];
+        while (
+            !self->mpsc->closed &&
+            self->mpsc->next_waiting_producer_id != (ssize_t)id)
+        {
+            my_condition_variable_wait(condition_variable, &self->mpsc->mutex);
+        }
+        if (self->mpsc->closed)
+        {
+            my_mutex_set_lock_state(&self->mpsc->mutex, false);
+            return false;
+        }
+        //  NOTE: Technically, once closed, shifting this no longer
+        //  helps, because the condition does necessarily mean that
+        //  `self->mpsc->next_waiting_producer_id != (ssize_t)id`. On
+        //  the other hand, if the while loop breaks because id == producer_id,
+        //  then we know shifting is for the appropriate waiting producer.
+        mpsc_shift_producer_wait_queue(self->mpsc);
     }
     if (n > 0)
     {
@@ -293,7 +355,9 @@ static void mpsc_producer_done(mpsc_producer_t *self)
     {
         self->done = true;
         self->mpsc->n_producers_closed += 1;
-        if (self->mpsc->n_producers_closed == self->mpsc->producer_count)
+        if (
+            self->mpsc->n_producers_closed == self->mpsc->producer_count &&
+            self->mpsc->joined)
         {
             self->mpsc->closed = true;
             my_condition_variable_signal(&self->mpsc->condition_variable);
@@ -312,18 +376,81 @@ mpsc_register_producer_error_t mpsc_producer_register_producer(mpsc_producer_t *
     return mpsc_register_producer(self->mpsc, callback, context);
 }
 
+static size_t mpsc_producer_subscribe_to_wait_queue(mpsc_producer_t *self)
+{
+    ssize_t index = -1;
+    for (size_t i = 0; i < self->mpsc->n_max_producers; i++)
+    {
+        if (&self->mpsc->producers[i] == self)
+        {
+            index = i;
+            break;
+        }
+    }
+    if (index == -1)
+    {
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] producer %p not found in list\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, (void *)self);
+        abort();
+    }
+    size_t id = (size_t)index;
+    if (self->mpsc->n_producers_waiting == self->mpsc->n_max_producers)
+    {
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] producer 'id = %zu' (%p) has already subscribed to waiting list\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, id, (void *)self);
+        abort();
+    }
+    self->mpsc->producer_waiting_ids_queue[self->mpsc->n_producers_waiting] = id;
+    self->mpsc->n_producers_waiting += 1;
+    return id;
+}
+
+static void mpsc_shift_producer_wait_queue(mpsc_t *self)
+{
+    if (self->n_producers_waiting == 0)
+    {
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] empty queue\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
+    }
+    for (size_t i = 0; i < self->n_producers_waiting - 1; i++)
+    {
+        self->producer_waiting_ids_queue[i] = self->producer_waiting_ids_queue[i + 1];
+    }
+    self->n_producers_waiting -= 1;
+    self->next_waiting_producer_id = -1;
+}
+
 static void mpsc_destroy(mpsc_t *self)
 {
     my_mutex_destroy(&self->mutex);
     my_condition_variable_destroy(&self->condition_variable);
+    for (size_t i = 0; i < self->n_max_producers; i++)
+    {
+        my_condition_variable_destroy(&self->producer_condition_variables[i]);
+    }
+    my_free(self->producer_condition_variables);
+    my_free(self->producer_waiting_ids_queue);
     my_free(self->buffer);
     my_free(self->producer_thread_ids);
     my_free(self->producers);
     my_free(self);
 }
 
-static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_failure_type_t type)
+static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_failure_type_t type, ssize_t producer_cond_var_index)
 {
+    // NOTE: The `ssize_t producer_cond_var_index` argument was added later on, along with the
+    // new `self->producer_condition_variables` array, to be able to indicate up to which
+    // to destroy, if needed. That said, this function could be refactored to take
+    // a structure of settings for the second argument, instead of having `producer_cond_var_index`, but
+    // it's OK for now I guess. But if other arguments are needed in the future, this should be
+    // converted to a structure...
     int custom_errno;
     switch (errno)
     {
@@ -334,20 +461,54 @@ static void *mpsc_handle_creation_failure(mpsc_t *self, mpsc_handle_creation_fai
         custom_errno = EAGAIN;
         break;
     default:
-        fprintf(stdout, "call to mpsc_handle_creation_failure failed: 'errno = %i' no supported by this call\n", errno);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] 'errno = %i' no supported by this call\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, errno);
+        abort();
     }
     switch (type)
     {
     case MPSC_HANDLE_CREATION_FAILURE_THREAD_CREATE:
         my_mutex_destroy(&self->mutex);
         my_condition_variable_destroy(&self->condition_variable);
+        for (size_t i = 0; i < self->n_max_producers; i++)
+        {
+            my_condition_variable_destroy(&self->producer_condition_variables[i]);
+        }
         break;
     case MPSC_HANDLE_CREATION_FAILURE_MUTEX_INIT:
         my_condition_variable_destroy(&self->condition_variable);
+        for (size_t i = 0; i < self->n_max_producers; i++)
+        {
+            my_condition_variable_destroy(&self->producer_condition_variables[i]);
+        }
+        break;
+    case MPSC_HANDLE_CREATION_FAILURE_COND_VAR_INIT:
+        if (producer_cond_var_index != -1)
+        {
+            // This means that the main condition variable has been initialized, and must
+            // therefore be destroyed.
+            my_condition_variable_destroy(&self->condition_variable);
+            // NOTE: If `producer_cond_var_index = 0`, then it means that
+            // failure occurred for that condition variable, so we don't
+            // destroy it since it was never created.
+            for (size_t i = 0; i < (size_t)producer_cond_var_index; i++)
+            {
+                my_condition_variable_destroy(&self->producer_condition_variables[i]);
+            }
+        }
         break;
     default:
         break;
+    }
+    if (self->producer_condition_variables != NULL)
+    {
+        my_free(self->producer_condition_variables);
+    }
+    if (self->producer_waiting_ids_queue != NULL)
+    {
+        my_free(self->producer_waiting_ids_queue);
     }
     if (self->producers != NULL)
     {
@@ -375,8 +536,9 @@ static void mpsc_create_params_validate(mpsc_create_params_t *params)
     {
         fprintf(
             stderr,
-            "call to mpsc_create failed: invalid 'consumer_callback = NULL'\n");
-        ABORT();
+            "%s:%i %s [Fatal Error] invalid 'consumer_callback = NULL'\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
     }
     if (
         params->error_handling_enabled &&
@@ -384,15 +546,17 @@ static void mpsc_create_params_validate(mpsc_create_params_t *params)
     {
         fprintf(
             stderr,
-            "call to mpsc_create failed: invalid 'consumer_error_callback = NULL'; must be present when 'error_handling_enabled = true'\n");
-        ABORT();
+            "%s:%i %s [Fatal Error] invalid 'consumer_error_callback = NULL'; must be present when 'error_handling_enabled = true'\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
     }
     if (params->n_max_producers == 0)
     {
         fprintf(
             stderr,
-            "call to mpsc_create failed: invalid 'n_max_producers = 0'; requires at least 1\n");
-        ABORT();
+            "%s:%i %s [Fatal Error] invalid 'n_max_producers = 0'; requires at least 1\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__);
+        abort();
     }
 }
 
@@ -415,11 +579,12 @@ static void *my_consumer_thread_callback(void *context)
     while (true)
     {
         my_mutex_set_lock_state(mutex, true);
-        while (!mpsc->pending_message && !mpsc->closed)
+        while (
+            !mpsc->pending_message &&
+            !mpsc->closed)
         {
             my_condition_variable_wait(condition_variable, mutex);
         }
-        // if (mpsc->closed)
         if (
             mpsc->closed &&
             !mpsc->pending_message) // NEW: If we have a pending message, we deliver it first
@@ -445,6 +610,12 @@ static void *my_consumer_thread_callback(void *context)
         }
         mpsc->n = 0;
         mpsc->pending_message = false;
+        if (mpsc->n_producers_waiting > 0 && !mpsc->closed)
+        {
+            size_t id = mpsc->producer_waiting_ids_queue[0];
+            mpsc->next_waiting_producer_id = id;
+            my_condition_variable_signal(&mpsc->producer_condition_variables[id]);
+        }
         my_mutex_set_lock_state(mutex, false);
         // IMPORTANT: don't hold the lock while calling the callback!
         (callback)(&mpsc->consumer, buffer, n, false);
@@ -459,8 +630,11 @@ static void my_thread_join(pthread_t id)
     int reason_code = pthread_join(id, NULL);
     if (reason_code != 0)
     {
-        fprintf(stderr, "call to pthread_join failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_join failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
 }
 
@@ -471,8 +645,11 @@ static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state)
         int reason_code = pthread_mutex_lock(mutex);
         if (reason_code != 0)
         {
-            fprintf(stderr, "call to pthread_mutex_lock failed with code = %i\n", reason_code);
-            ABORT();
+            fprintf(
+                stderr,
+                "%s:%i %s [Fatal Error] call to pthread_mutex_lock failed with code = %i\n",
+                MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+            abort();
         }
     }
     else
@@ -480,8 +657,11 @@ static void my_mutex_set_lock_state(pthread_mutex_t *mutex, bool state)
         int reason_code = pthread_mutex_unlock(mutex);
         if (reason_code != 0)
         {
-            fprintf(stderr, "call to pthread_mutex_unlock failed with code = %i\n", reason_code);
-            ABORT();
+            fprintf(
+                stderr,
+                "%s:%i %s [Fatal Error] call to pthread_mutex_unlock failed with code = %i\n",
+                MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+            abort();
         }
     }
 }
@@ -491,8 +671,11 @@ static void my_condition_variable_signal(pthread_cond_t *condition_variable)
     int reason_code = pthread_cond_signal(condition_variable);
     if (reason_code != 0)
     {
-        fprintf(stderr, "call to pthread_cond_signal failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_cond_signal failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
 }
 
@@ -501,8 +684,11 @@ static void my_condition_variable_wait(pthread_cond_t *condition_variable, pthre
     int reason_code = pthread_cond_wait(condition_variable, mutex);
     if (reason_code != 0)
     {
-        fprintf(stderr, "call to pthread_cond_wait failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_cond_wait failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
 }
 
@@ -518,8 +704,11 @@ static bool my_mutex_init(pthread_mutex_t *mutex, bool handle_errors)
             errno = reason_code;
             return false;
         }
-        fprintf(stderr, "call to pthread_mutex_init failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_mutex_init failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
     return true;
 }
@@ -529,8 +718,11 @@ static void my_mutex_destroy(pthread_mutex_t *mutex)
     int reason_code = pthread_mutex_destroy(mutex);
     if (reason_code != 0)
     {
-        fprintf(stderr, "call to pthread_mutex_destroy failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_mutex_destroy failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
 }
 
@@ -546,8 +738,11 @@ static bool my_condition_variable_init(pthread_cond_t *condition_variable, bool 
             errno = reason_code;
             return false;
         }
-        fprintf(stderr, "call to pthread_cond_init failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_cond_init failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
     return true;
 }
@@ -557,8 +752,11 @@ static void my_condition_variable_destroy(pthread_cond_t *condition_variable)
     int reason_code = pthread_cond_destroy(condition_variable);
     if (reason_code != 0)
     {
-        fprintf(stderr, "call to pthread_cond_destroy failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_cond_destroy failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
 }
 
@@ -574,8 +772,11 @@ static bool my_thread_create(pthread_t *id, void *(callback)(void *context), voi
             errno = reason_code;
             return false;
         }
-        fprintf(stderr, "call to pthread_create failed with code = %i\n", reason_code);
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to pthread_create failed with code = %i\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, reason_code);
+        abort();
     }
     return true;
 }
@@ -591,8 +792,11 @@ static void *my_malloc(size_t n, bool handle_errors)
         {
             return NULL;
         }
-        perror("malloc");
-        ABORT();
+        fprintf(
+            stderr,
+            "%s:%i %s [Fatal Error] call to malloc failed with 'strerror = %s'\n",
+            MPSC_SRC_FILE_NAME, __LINE__, __func__, strerror(errno));
+        abort();
     }
     return pointer;
 }

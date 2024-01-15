@@ -63,6 +63,16 @@ example_quick_example: \
 		-o $(EXAMPLES_BUILD_DIR)/quick_example
 	./$(EXAMPLES_BUILD_DIR)/quick_example
 
+example_sleeping_consumer: \
+	$(EXAMPLES_BUILD_DIR) \
+	$(INCLUDE_DIR)/$(LIB_NAME).h \
+	$(SOURCE_DIR)/$(LIB_NAME).c \
+	$(EXAMPLES_DIR)/sleeping_consumer.c
+	$(CC) $(CFLAGS) \
+		$(SOURCE_DIR)/$(LIB_NAME).c $(EXAMPLES_DIR)/sleeping_consumer.c \
+		-o $(EXAMPLES_BUILD_DIR)/sleeping_consumer
+	./$(EXAMPLES_BUILD_DIR)/sleeping_consumer
+
 example_empty_messages: \
 	$(EXAMPLES_BUILD_DIR) \
 	$(INCLUDE_DIR)/$(LIB_NAME).h \

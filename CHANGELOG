@@ -1,0 +1,14 @@
+# Version 0.1.1
+
+* Removed "busy-waiting recursion" from `mpsc_producer_send`
+function and updated implementation (see [src/mpsc.c](./src/mpsc.c))
+to use condition variables instead.
+* Also improved error printouts before calls to `abort` (see
+implementation file [src/mpsc.c](./src/mpsc.c)).
+* Added [examples/sleeping_consumer.c](./examples/sleeping_consumer.c)
+example to illustrate that the problem caused by the "busy-waiting recursion"
+is gone.
+* Added a point to the [roadmap section](./README.md#roadmap), about wanting
+to add support for asynchronous message sending in a future version.
+* Added a warning in the documentation for `mpsc_create_params_t`.
+* Added this [CHANGELOG](./CHANGELOG) file.

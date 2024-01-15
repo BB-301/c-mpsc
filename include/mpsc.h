@@ -152,6 +152,13 @@ typedef struct
      * to be terminated, regardless of `error_handling_enabled`'s value.
      * @note - This value can be set to 0 if the application only requires
      * empty messages, or if it does not need to send messages at all.
+     * @warning In this context, the argument name `buffer_size` should not
+     * be confused with the term buffer in the sense of a "buffered channel",
+     * for which the term could correspond to the number of messages that can
+     * be held inside an internal message queue to be delivered to the consumer.
+     * Currently, this library only allows sending one message at the time, in
+     * a blocking manner. In other words, the \ref mpsc_producer_send and
+     * \ref mpsc_producer_send_empty functions are blocking functions.
      */
     size_t buffer_size;
     /**

@@ -10,6 +10,10 @@
 
 I created this library as a learning activity, while trying to see if I could implement something similar to Rust's [std::sync::mpsc](https://doc.rust-lang.org/std/sync/mpsc) module in C. The result turned out to be something that is not directly comparable to the Rust Standard Library's `mpsc` module, but nonetheless turned out to be an insightful as well as enjoyable exercise!
 
+### Sync vs async messages
+
+Currently, this library only allows for synchronous message passing (i.e., sending), although that could change in a future version ([read more](#roadmap)).
+
 ## A quick example
 
 ```c
@@ -127,6 +131,7 @@ This is an experimental library, so please use with caution, and please feel fre
 
 ## Roadmap
 
+* Currently, the library does not allow for asynchronous message sending; only synchronous message sending. As a consequence, each call to `mpsc_producer_send` (or `mpsc_producer_send_empty`) will block until the previous internal call to the consumer callback (from inside the consumer thread callback loop) returns. I think that it would be interesting to add the option to create a `mpsc_t` instance with message buffering support, which would allow for asynchronous message passing. As far as the public API is concerned, that would require either modifying the return types (and possibly also the argument list) for both `mpsc_producer_send` and `mpsc_producer_send_empty`, or simply creating new functions called, for instance, `mpsc_producer_send_async` and `mpsc_producer_send_empty_async`, to be used to send messages asynchronously. I think the second approach would be better since it would not break the existing API.
 * I would like to identify more real life applications for which this library could be useful and add those as examples to the [examples](./examples) directory.
 * I want to add a section (to this README.md file) about error handling.
 * I just realized, at the moment of publication of this first version of the project, that there is currently no way for a consumer callback to know for which `mpsc_t` object it is being executed (except than to use a callback for no more than only one `mpsc_t` instance by application). That means that, for an application using multiple channel instances, and for which knowledge about the channel object for which the callback is being executed would be required, that application would have to implement an individual consumer callback function for each channel, even if the callback implementation is the same across some of the channels. This could easily be solved by allowing to store arbitrary application data in the `mpsc_t` object at instantiation time, and by providing a simple function to be able to retrieve said data from inside the callback (e.g., `void *mpsc_consumer_channel_context(mpsc_consumer_t *self)`). A similar function to be used with the producer object could also be added (e.g., `void *mpsc_producer_channel_context(mpsc_producer_t *self)`).
